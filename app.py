@@ -14,6 +14,10 @@ import torch
 import tensorflow as tf
 import io
 import PyPDF2
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -22,6 +26,11 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Global variables
 # Add at the top with other global variables
+# Email Configuration
+# Email Configuration
+SENDER_EMAIL = "bhavanisaladi9182@gmail.com"
+SENDER_PASSWORD = "zhco sqvv vyvf hoav"
+RECEIVER_EMAIL = "gudisasandeep141312@gmail.com"
 
 
 analysis_results = {
@@ -210,6 +219,8 @@ def process_frame(frame, metrics_only=False):
             if not metrics_only:
                 # Map emotion to engagement state
                 engagement_state = map_emotion_to_state(emotion, attention_score)
+                if engagement_state in ['distracted', 'sleeping']:
+                    send_distraction_alert(engagement_state, attention_score)
                 
                 # Draw bounding box with corresponding color
                 color = EMOTION_COLORS.get(engagement_state, (255, 255, 255))
@@ -257,6 +268,37 @@ def process_frame(frame, metrics_only=False):
     except Exception as e:
         print(f"Frame processing error: {str(e)}")
         return None
+def send_distraction_alert(student_state, attention_score):
+    try:
+        # Create email message
+        message = MIMEMultipart()
+        message["From"] = SENDER_EMAIL
+        message["To"] = RECEIVER_EMAIL
+        message["Subject"] = f"Student Attention Alert - {student_state}"
+        
+        # Create email body
+        body = f"""
+        Attention Alert!
+        
+        Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        Student State: {student_state}
+        Attention Score: {attention_score:.2f}/10
+        
+        This is an automated alert from the Training Monitoring System.
+        Please check on the student's engagement level.
+        """
+        
+        message.attach(MIMEText(body, "plain"))
+        
+        # Send email
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, message.as_string())
+            print(f"Alert email sent for {student_state} state")
+            
+    except Exception as e:
+        print(f"Failed to send alert email: {str(e)}")
 
 def map_emotion_to_state(emotion, attention_score):
     """Map DeepFace emotion to engagement state"""
@@ -290,7 +332,7 @@ def continuous_analysis():
                 if a != -1 and b != -1:
                     jpg = bytes_data[a:b+2]
                     bytes_data = bytes_data[b+2:]
-                    
+        
                     frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
                     if frame is not None:
                         frame = cv2.resize(frame, (640, 480))
